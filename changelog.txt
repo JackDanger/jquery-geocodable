@@ -1,0 +1,5 @@
+jquery.geocodable.js
+
+Version 0.9
+
+Initial Release
