@@ -1,0 +1,7 @@
+. factor out the google dependencies into a 'geocoder' abstraction
+. provide a yahoo geocoder
+. provide a geocoder callback for third-parties
+. do a better job of pulling out data from google placemarks; they're
+  surprisingly terribly inconsistent with the data they hand back.
+. make the countryMap and regionMap overridable, think about
+  localization

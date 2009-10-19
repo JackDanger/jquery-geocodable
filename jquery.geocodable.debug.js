@@ -1,24 +1,48 @@
 /*
  Google Geocoder plugin for jQuery
- Version: 0.9
+ Version: 1.0
 
- Copyright (c) 2009 Andrew Houghton
+ Copyright (c) 2009 Andrew Houghton (aah@roarmouse.org)
  Copyright (c) 2009 VolunteerMatch
 
  October 15, 2009
 
- Requires: jQuery 1.2.3+
+ Tested with: jQuery 1.3.2+
+ Depends on Google Maps libary being pre-loaded.
+
+ Lots of comments in this file.  It's strongly recommended
+ that you use the minified version.
 
  ------------------------------------------------------*/
 
 ;
 (function ($) {
   var
+    /**
+     * jquery.data() Flag used to determine if a form has been seen before;
+     * determines whether we hook up event listeners for submit.
+     */
     gcFlag = "gcFlag",
+    /**
+     * jquery.data() holds input fields that need geocoding for a form
+     */
     gcFields = "gcFields",
+    /**
+     * jquery.data() counts successful geocodings on submit
+     */
     gcSuccess = "gcSuccess",
+    /**
+     * jquery.data() Flag marks whether we've started geocoding for a
+     * form submit
+     */
     gcStarted = "gcStarted",
+    /**
+     * Geocoder global
+     */
     geocoder = null,
+    /**
+     * Map of 2-letter country code to English language name.
+     */
     countryMap = {
       'AD': 'Andorra',
       'AE': 'United Arab Emirates',
@@ -267,6 +291,10 @@
       'ZM': 'Zambia',
       'ZW': 'Zimbabwe'
     },
+    /**
+     * Map of 2-letter country code to Map of region abbreviation to name.
+     * Could be used to
+     */
     regionMap = {
       'US': {
         'AL': 'Alabama',
@@ -330,7 +358,15 @@
         'WY': 'Wyoming'
       }
     };
-  
+
+  /**
+   * Private. Normalized placemark.  Depends on options for deciding
+   * whether to use country / region mapping when building normalized
+   * address.
+   *
+   * @param placemark Google Placemark
+   * @param _options options
+   */
   function Mark(placemark, _options) {
     this.latitude = 0.0;
     this.longitude = 0.0;
@@ -383,7 +419,15 @@
       this.buildAddress(_options);
     }
   }
-  
+
+  /**
+   * Private. Build the address for a Mark; separated out because I'm
+   * not sure yet whether to pre-build the address in every case,
+   * and there may be a better way to handle the _options, which
+   * are being passed all over the hell and gone.
+   *
+   * @param _options options
+   */
   Mark.prototype.buildAddress = function(_options) {
     var address = this.address, region, country;
 
@@ -435,6 +479,13 @@
     return address;
   };
 
+  /**
+   * Private. Is this Mark valid for use?  Minimally, a Mark must have an
+   * address we can display, and the country for the Mark must not be in
+   * the set of countries we're willing to display.
+   *
+   * @param _options options
+   */
   Mark.prototype.isValid = function(_options) {
     var response = true;
 
@@ -450,6 +501,11 @@
     return response;
   };
 
+  /**
+   * Private. Alphabetic comparator, sorts Marks by country then address.
+   *
+   * @param that the other Mark
+   */
   Mark.prototype.compareTo = function(that) {
     if (this.country != that.country) {
       return this.country < that.country ? -1 : 1;
@@ -458,6 +514,13 @@
     return this.address < that.address ? -1 : this.address == that.address ? 0 : 1;
   };
 
+  /**
+   * Private. Hook up geocoding for a form/field.  If the form hasn't been
+   * seen before, add the necessary jquery.data() calls.  Push the field onto
+   * the form's gcFields.  Iff we've seen the form before, return true.
+   *
+   * @param fld guaranteed to be a text input field
+   */
   var _addGeocodableInput = function(fld) {
     var $form = $(fld.form), flds = $form.data(gcFields), formWasKnown = flds != null;
 
@@ -473,6 +536,20 @@
     return formWasKnown;
   };
 
+  /**
+   * Public / Overrideable. Internal sample of a disambiguation callback.
+   * Displays a popup below the field in question, populates it with the
+   * valid Marks, and allows the user to click one to populate the
+   * original field. Depends on two styles: "disambiguation" (for the
+   * popup), and "disambiguationLink" (for the individual options).  More
+   * to be done here -- allow using the keyboard to navigate options.
+   *
+   * @param fld the text field with the ambiguous address
+   * @param marks the set of possible Marks
+   * @param $form the parent form of the field, if any -- this
+   * will always be set for submit, never be set for blur
+   * @param _options options
+   */
   var _disambiguate = function(fld, marks, $form, _options) {
     var _removeDisambiguation = function(evt) {
       if (!$(evt.target).hasClass('disambiguation')) {
@@ -517,12 +594,26 @@
     d.show();
   };
 
-  var _resetStatus = function(elt, flag) {
-    $(elt)
+  /**
+   * Private. A helper function to reset the form success status
+   * and preset the started flag (only used for submit)
+   *
+   * @param frm a form
+   * @param flag true if we've started geocoding
+   */
+  var _resetStatus = function(frm, flag) {
+    $(frm)
       .data(gcStarted, flag)
       .data(gcSuccess, new Array());
   };
 
+  /**
+   * Private. Geocode an individual field.
+   *
+   * @param elt a text input field
+   * @param _options options
+   * @param $form if we're submitting a form, the parent form of the field
+   */
   var _geocodeThis = function(elt, _options, $form) {
     var loc = $.trim($(elt).val());
 
@@ -537,6 +628,12 @@
     }
   };
 
+  /**
+   * Private. Geocode a form or field.
+   *
+   * @param elt a form or a text input field
+   * @param _options options
+   */
   var _geocode = function(elt, _options) {
     if ($(elt).is('form')) {
       _resetStatus(elt, 1);
@@ -549,12 +646,25 @@
     }
   };
 
+  /**
+   * Private. Helper function to provide a closure for the AJAX callback.
+   *
+   * @param fld the field being geocoded
+   * @param _options options
+   * @param $form the field's parent form, if we're submitting
+   */
   var _getGeocoderCallback = function(fld, _options, $form) {
     return function(response) {
       return _geocoderCallback(fld, _options, $form, response);
     };
   };
 
+  /**
+   * Private. Build marks, normalize, sort, return.
+   *
+   * @param placemarks the Placemarks from Google
+   * @param _options options
+   */
   var _buildMarkArray = function(placemarks, _options) {
     var marks = new Array(), addresses = new Array();
     $.each(placemarks, function() {
@@ -576,6 +686,14 @@
     return marks;
   };
 
+  /**
+   * Private.  The callback for the geocodeLocations call.
+   *
+   * @param fld the field being geocoded
+   * @param _options options
+   * @param $form the parent form, if we're submitting
+   * @param response the response from Google for the AJAX call
+   */
   var _geocoderCallback = function(fld, _options, $form, response) {
     var code = !response ? -1 : response.Status.code;
 
@@ -616,16 +734,35 @@
     }
   };
 
+  /**
+   * Private.  Helper function to track success or not for individual
+   * fields in a form.
+   *
+   * @param $form the form we're geocoding
+   * @param success true if geocoding resulted in one, unambiguous answer
+   */
   var _pushResult = function($form, success) {
     $form.data(gcSuccess).push(success);
   };
 
-  var _isComplete = function(elt) {
-    return ($(elt).data(gcSuccess).length == $(elt).data(gcFields).length);
+  /**
+   * Private. Helper function to calculate whether all the fields on
+   * a form are done geocoding.
+   *
+   * @param frm the form we're geocoding
+   */
+  var _isComplete = function(frm) {
+    return ($(frm).data(gcSuccess).length == $(frm).data(gcFields).length);
   };
 
-  var _isSuccess = function(elt) {
-    var results = $(elt).data(gcSuccess), success = 0;
+  /**
+   * Private.  Helper function to calculate whether all the fields
+   * for the given form were succesfully geocoded.
+   *
+   * @param frm the form we're geocoding
+   */
+  var _isSuccess = function(frm) {
+    var results = $(frm).data(gcSuccess), success = 0;
 
     $.each(results, function() {
       success = success + this;
@@ -634,10 +771,49 @@
     return success == results.length;
   };
 
-  var _isGeocoding = function(elt) {
-    return $(elt).data(gcStarted) == 1;
+  /**
+   * Private.  Helper function to determine if we're
+   * currently geocoding a form
+   *
+   * @param frm the form
+   */
+  var _isGeocoding = function(frm) {
+    return $(frm).data(gcStarted) == 1;
   };
 
+  /**
+   * The plugin.  We ignore any incoming elements which are not text
+   * input fields.  We provide the following options:
+   * <ul>
+   * <li>disambiguationCallback: a callback used to display a set of
+   * potential address matches.  See <code>_disambiguate</code> for an
+   * example.
+   * <li>choiceCallback: a callback used for notification when a user
+   * chooses a particular option from the disambiguation popup. No
+   * internal examples.
+   * <li>onSubmit: should we trigger when our form is submitted?
+   * <li>onBlur: should we trigger on field.blur?
+   * <li>submitOnFailure: should we allow form submit if the fields
+   * couldn't be geocoded?
+   * <li>countries: an array of 2-letter country abbreviations that we
+   * accepts as geocoding results.  If the results come from different
+   * countries, we won't display them.  Set to an empty array to allow
+   * all countries.
+   * <li>implicitCountries:  an array of 2-letter country abbreviations
+   * that we don't bother adding to addresses -- they're "local".
+   * <li>baseCountryCode: an override for the browser country code; if
+   * set, we pass it to Google for every geocoding call.  Note that this
+   * is a ccTLD, <em>NOT</em> a country abbreviation.  See
+   * http://code.google.com/apis/maps/documentation/reference.html#GClientGeocoder
+   * for more information.
+   * <li>mapCountry: should we attempt to map country codes to country names?  Note
+   * that this is not localized.
+   * <li>mapRegion: should we attempt to map region abbreviations to region names?
+   * Note that this is not localized.
+   * </ul>
+   *
+   * @param options
+   */
   $.fn.geocodable = function (options) {
     var _options = jQuery.extend({
       disambiguationCallback: _disambiguate,
