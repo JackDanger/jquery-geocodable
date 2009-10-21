@@ -1,17 +1,12 @@
-/*
+/*!
  Google Geocoder plugin for jQuery
- Version: 1.0
+ Version: 1.2
 
  Copyright (c) 2009 Andrew Houghton (aah@roarmouse.org)
  Copyright (c) 2009 VolunteerMatch
 
- October 15, 2009
-
  Tested with: jQuery 1.3.2+
  Depends on Google Maps libary being pre-loaded.
-
- Lots of comments in this file.  It's strongly recommended
- that you use the minified version.
 
  ------------------------------------------------------*/
 
@@ -59,7 +54,7 @@
       'AT': 'Austria',
       'AU': 'Australia',
       'AW': 'Aruba',
-      'AX': '﻿Åland Islands',
+      'AX': '\u00e5land Islands',
       'AZ': 'Azerbaijan',
       'BA': 'Bosnia and Herzegovina',
       'BB': 'Barbados',
@@ -70,7 +65,7 @@
       'BH': 'Bahrain',
       'BI': 'Burundi',
       'BJ': 'Benin',
-      'BL': 'Saint Barthélemy',
+      'BL': 'Saint Barth\u00c9lemy',
       'BM': 'Bermuda',
       'BN': 'Brunei',
       'BO': 'Bolivia',
@@ -87,7 +82,7 @@
       'CF': 'Central African Republic',
       'CG': 'Congo',
       'CH': 'Switzerland',
-      'CI': '﻿Côte d\'Ivoire',
+      'CI': 'C\u00f6te d\'Ivoire',
       'CK': 'Cook Islands',
       'CL': 'Chile',
       'CM': 'Cameroon',
@@ -230,7 +225,7 @@
       'PW': 'Palau',
       'PY': 'Paraguay',
       'QA': 'Qatar',
-      'RE': 'Réunion',
+      'RE': 'R\u00e9union',
       'RO': 'Romania',
       'RS': 'Serbia',
       'RU': 'Russian Federation',
@@ -378,7 +373,7 @@
     this.street = null;
     this.address = null;
     this.placemark = placemark;
-    
+
     if (placemark.Point && placemark.Point.coordinates) {
       this.latitude = placemark.Point.coordinates[0];
       this.longitude = placemark.Point.coordinates[1];
@@ -389,30 +384,30 @@
     if (elem) {
       this.accuracy = elem.Accuracy;
 
-      if (elem.Country != null) {
+      if (elem.Country) {
         elem = elem.Country;
         this.country = elem.CountryNameCode;
       }
 
-      if (elem.AdministrativeArea != null) {
+      if (elem.AdministrativeArea) {
         elem = elem.AdministrativeArea;
         this.region = elem.AdministrativeAreaName;
       }
 
-      if (elem.SubAdministrativeArea != null) {
+      if (elem.SubAdministrativeArea) {
         elem = elem.SubAdministrativeArea;
       }
 
-      if (elem.Locality != null) {
+      if (elem.Locality) {
         elem = elem.Locality;
         this.city = elem.LocalityName;
       }
 
-      if (elem.PostalCode != null) {
+      if (elem.PostalCode) {
         this.postalCode = elem.PostalCode.PostalCodeNumber;
       }
 
-      if (elem.Thoroughfare != null) {
+      if (elem.Thoroughfare) {
         this.street = elem.Thoroughfare.ThoroughfareName;
       }
 
@@ -431,40 +426,40 @@
   Mark.prototype.buildAddress = function(_options) {
     var address = this.address, region, country;
 
-    if (address == null) {
-      if (this.street != null) {
+    if (address === null) {
+      if (this.street !== null) {
         address = this.street;
       }
 
-      if (this.city != null) {
-        address = address == null ? this.city : address + ', ' + this.city;
+      if (this.city !== null) {
+        address = address === null ? this.city : address + ', ' + this.city;
       }
 
-      if (this.region != null) {
+      if (this.region !== null) {
         region = this.region;
 
-        if (address == null || this.street == null) {
+        if (address === null || this.street === null) {
           // use the full name, if available
           if (_options && _options.mapRegion && regionMap[this.country] && regionMap[this.country][this.region]) {
             region = regionMap[this.country][this.region];
           }
         }
 
-        address = address == null ? region : address + ', ' + region;
+        address = address === null ? region : address + ', ' + region;
       }
 
-      if (this.postalCode != null) {
-        address = address == null ? this.postalCode : address + ', ' + this.postalCode;
+      if (this.postalCode !== null) {
+        address = address === null ? this.postalCode : address + ', ' + this.postalCode;
       }
 
-      if (this.country != null) {
+      if (this.country !== null) {
         country = this.country;
 
         if (_options && _options.mapCountry && countryMap[this.country]) {
           country = countryMap[this.country];
         }
 
-        if (address != null) {
+        if (address !== null) {
           if (_options && $.inArray(this.country, _options.implicitCountries) == -1) {
             address = address + ', ' + country;
           }
@@ -489,9 +484,8 @@
   Mark.prototype.isValid = function(_options) {
     var response = true;
 
-    if (this.address == null) {
+    if (this.address === null) {
       response = false;
-      console.log(this.placemark);
     }
 
     if (response && this.country && _options.countries.length > 0) {
@@ -522,13 +516,13 @@
    * @param fld guaranteed to be a text input field
    */
   var _addGeocodableInput = function(fld) {
-    var $form = $(fld.form), flds = $form.data(gcFields), formWasKnown = flds != null;
+    var $form = $(fld.form), flds = $form.data(gcFields), formWasKnown = flds !== null;
 
     if (!flds) {
-      flds = new Array();
+      flds = [];
       $form.data(gcFields, flds);
       $form.data(gcStarted, 0);
-      $form.data(gcSuccess, new Array());
+      $form.data(gcSuccess, []);
     }
 
     flds.push(fld);
@@ -565,7 +559,17 @@
     $.each(marks, function() {
       var sd = document.createElement('div');
       sd.mark = this;
-      $(sd).text(this.address).addClass('disambiguationLink');
+      $(sd).text(this.address).addClass('disambiguationLink').bind('click',
+        function() {
+          $(fld).val($(this).text());
+          if (_options.choiceCallback) {
+            _options.choiceCallback(this.mark);
+          }
+          d.remove();
+          if ($form) {
+            $form.submit();
+          }
+        });
       d.append(sd);
     });
 
@@ -573,20 +577,9 @@
     d.css({
       "left": pos.left,
       "top": pos.top + $(fld).outerHeight(),
-      "width": $(fld).width()
+      "width": $(fld).outerWidth()
     });
     $(fld).after(d);
-
-    $('.disambiguationLink').live('click', function() {
-      $(fld).val($(this).text());
-      if (_options.choiceCallback) {
-        _options.choiceCallback(this.mark);
-      }
-      d.remove();
-      if ($form) {
-        $form.submit();
-      }
-    });
 
     $(document)
       .bind('keypress', _removeDisambiguation)
@@ -604,7 +597,7 @@
   var _resetStatus = function(frm, flag) {
     $(frm)
       .data(gcStarted, flag)
-      .data(gcSuccess, new Array());
+      .data(gcSuccess, []);
   };
 
   /**
@@ -618,7 +611,7 @@
     var loc = $.trim($(elt).val());
 
     if (loc.length > 1) {
-      if (_options.baseCountryCode != null) {
+      if (_options.baseCountryCode !== null) {
         geocoder.setBaseCountryCode(_options.baseCountryCode);
       }
       geocoder.getLocations(loc, _getGeocoderCallback(elt, _options, $form));
@@ -637,6 +630,7 @@
   var _geocode = function(elt, _options) {
     if ($(elt).is('form')) {
       _resetStatus(elt, 1);
+      elt = $(elt);
 
       $.each($(elt).data(gcFields), function() {
         _geocodeThis(this, _options, elt);
@@ -666,7 +660,7 @@
    * @param _options options
    */
   var _buildMarkArray = function(placemarks, _options) {
-    var marks = new Array(), addresses = new Array();
+    var marks = [], addresses = [];
     $.each(placemarks, function() {
       if (this && this.AddressDetails) {
         var mark = new Mark(this, _options);
@@ -810,6 +804,8 @@
    * that this is not localized.
    * <li>mapRegion: should we attempt to map region abbreviations to region names?
    * Note that this is not localized.
+   * <li>disambiguate: a list of addresses to immediately present as options for
+   * disambiguation.  Generally useful to present server-side responses on error.
    * </ul>
    *
    * @param options
@@ -825,10 +821,11 @@
       implicitCountries: ['US'],
       baseCountryCode: null,
       mapCountry: true,
-      mapRegion: true
+      mapRegion: true,
+      disambiguate: null
     }, options);
 
-    if (geocoder == null && typeof(GBrowserIsCompatible) != "undefined" && GBrowserIsCompatible()) {
+    if (geocoder === null && typeof(GBrowserIsCompatible) != "undefined" && GBrowserIsCompatible()) {
       geocoder = new GClientGeocoder();
     }
 
@@ -836,7 +833,7 @@
       function () {
         var $input = $(this), $form = $(this.form);
 
-        if (geocoder == null || !$input.is(':text')) {
+        if (geocoder === null || !$input.is(':text')) {
           return;
         }
 
@@ -853,7 +850,10 @@
             if (!_addGeocodableInput(this)) {
               $form.submit(function() {
                 if (_isGeocoding(this)) {
-                  if (!_isComplete(this)) return false;
+                  if (!_isComplete(this)) {
+                    return false;
+                  }
+
                   if (_isSuccess(this)) {
                     this.submit();
                     return true;
@@ -862,11 +862,15 @@
                     return false;
                   }
                 }
-  
+
                 _geocode(this, _options);
                 return false;
               });
             }
+          }
+
+          if (_options.disambiguate) {
+
           }
         }
       });
